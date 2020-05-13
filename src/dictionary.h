@@ -16,7 +16,7 @@
 #include <random>
 #include <memory>
 #include <unordered_map>
-
+#include <ctime>
 #include "args.h"
 #include "real.h"
 
@@ -30,6 +30,7 @@ struct entry {
   int64_t count;
   entry_type type;
   std::vector<int32_t> subwords;
+  std::time_t intime;
 };
 
 class Dictionary {

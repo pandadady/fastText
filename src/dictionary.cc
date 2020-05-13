@@ -38,12 +38,12 @@ int32_t Dictionary::find(const std::string& w) const {
 }
 
 int32_t Dictionary::find(const std::string& w, uint32_t h) const {
-  int32_t word2intsize = word2int_.size();
-  int32_t id = h % word2intsize;
-  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
-    id = (id + 1) % word2intsize;
-  }
-  return id;
+    int32_t word2intsize = word2int_.size();
+    int32_t id = h % word2intsize;
+    while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
+        id = (id + 1) % word2intsize;
+    }
+    return id;
 }
 
 void Dictionary::add(const std::string& w) {
@@ -398,57 +398,97 @@ std::string Dictionary::getLabel(int32_t lid) const {
 }
 
 void Dictionary::save(std::ostream& out) const {
-  out.write((char*) &size_, sizeof(int32_t));
-  out.write((char*) &nwords_, sizeof(int32_t));
-  out.write((char*) &nlabels_, sizeof(int32_t));
-  out.write((char*) &ntokens_, sizeof(int64_t));
-  out.write((char*) &pruneidx_size_, sizeof(int64_t));
-  for (int32_t i = 0; i < size_; i++) {
-    entry e = words_[i];
-    out.write(e.word.data(), e.word.size() * sizeof(char));
-    out.put(0);
-    out.write((char*) &(e.count), sizeof(int64_t));
-    out.write((char*) &(e.type), sizeof(entry_type));
-  }
-  for (const auto pair : pruneidx_) {
-    out.write((char*) &(pair.first), sizeof(int32_t));
-    out.write((char*) &(pair.second), sizeof(int32_t));
-  }
+    out.write((char*) &size_, sizeof(int32_t));
+    out.write((char*) &nwords_, sizeof(int32_t));
+    out.write((char*) &nlabels_, sizeof(int32_t));
+    out.write((char*) &ntokens_, sizeof(int64_t));
+    out.write((char*) &pruneidx_size_, sizeof(int64_t));
+    std::time_t now = std::time(nullptr);
+    std::time_t old = 1566871200;//入职
+    for (int32_t i = 0; i < size_; i++) {
+        entry e = words_[i];
+        out.write(e.word.data(), e.word.size() * sizeof(char));
+        out.put(0);
+        out.write((char*) &(e.count), sizeof(int64_t));
+        out.write((char*) &(e.type), sizeof(entry_type));
+//        std::cout<<i<<std::endl;
+        if (e.intime > now|| e.intime <= old){
+            e.intime = now;
+        }
+        out.write((char*) &(e.intime), sizeof(std::time_t));
+//        std::cout<<"save: "<<e.word.data()<<" "<<old<<" "<<" "<<now<<" "<<e.intime<<std::endl;
+
+    }
+    for (const auto pair : pruneidx_) {
+        out.write((char*) &(pair.first), sizeof(int32_t));
+        out.write((char*) &(pair.second), sizeof(int32_t));
+    }
 }
 
 void Dictionary::load(std::istream& in) {
-  words_.clear();
-  in.read((char*) &size_, sizeof(int32_t));
-  in.read((char*) &nwords_, sizeof(int32_t));
-  in.read((char*) &nlabels_, sizeof(int32_t));
-  in.read((char*) &ntokens_, sizeof(int64_t));
-  in.read((char*) &pruneidx_size_, sizeof(int64_t));
-  for (int32_t i = 0; i < size_; i++) {
-    char c;
-    entry e;
-    while ((c = in.get()) != 0) {
-      e.word.push_back(c);
-    }
-    in.read((char*) &e.count, sizeof(int64_t));
-    in.read((char*) &e.type, sizeof(entry_type));
-    words_.push_back(e);
-  }
-  pruneidx_.clear();
-  for (int32_t i = 0; i < pruneidx_size_; i++) {
-    int32_t first;
-    int32_t second;
-    in.read((char*) &first, sizeof(int32_t));
-    in.read((char*) &second, sizeof(int32_t));
-    pruneidx_[first] = second;
-  }
-  initTableDiscard();
-  initNgrams();
+    words_.clear();
+    in.read((char*) &size_, sizeof(int32_t));
+    in.read((char*) &nwords_, sizeof(int32_t));
+    in.read((char*) &nlabels_, sizeof(int32_t));
+    in.read((char*) &ntokens_, sizeof(int64_t));
+    in.read((char*) &pruneidx_size_, sizeof(int64_t));
+//    std::cout<<"size_ "<<size_<<std::endl;
+//    std::cout<<"nwords_ "<<nwords_<<std::endl;
+//    std::cout<<"nlabels_ "<<nlabels_<<std::endl;
+//    std::cout<<"ntokens_ "<<ntokens_<<std::endl;
+//    std::cout<<"pruneidx_size_ "<<pruneidx_size_<<std::endl;
+    std::time_t now = std::time(nullptr);
+    std::time_t old = 1566871200;//入职
+    int32_t count= 0 ;
+    for (int32_t i = 0; i < size_; i++) {
+        char c;
+        entry e;
+        while ((c = in.get()) != 0) {
+          e.word.push_back(c);
+        }
+        in.read((char*) &e.count, sizeof(int64_t));
+        in.read((char*) &e.type, sizeof(entry_type));
+//        std::cout<<i<<std::endl;
+        in.read((char*) &(e.intime), sizeof(std::time_t));
 
-  int32_t word2intsize = std::ceil(size_ / 0.7);
-  word2int_.assign(word2intsize, -1);
-  for (int32_t i = 0; i < size_; i++) {
-    word2int_[find(words_[i].word)] = i;
-  }
+        if (e.intime > now|| e.intime <= old){
+            e.intime = now;
+        }
+        if ((now - e.intime) < 60*24*3600){
+            words_.push_back(e);
+            count++;
+//            std::cout<<"load: "<<e.word.data()<<" "<<old<<" "<<now<<" "<<e.intime<<" "<<((now - e.intime) < 60*24*3600)<<std::endl;
+            continue;
+        }
+        else{
+//            std::cout<<"pass load: "<<e.word.data()<<" "<<old<<" "<<now<<" "<<e.intime<<" "<<((now - e.intime) < 60*24*3600)<<std::endl;
+            continue;
+        }
+    }
+    size_ = count;
+    nwords_ = count;
+    pruneidx_.clear();
+//    std::cout<<"after  "<<std::endl;
+//    std::cout<<"size_ "<<size_<<std::endl;
+//    std::cout<<"nwords_ "<<nwords_<<std::endl;
+//    std::cout<<"nlabels_ "<<nlabels_<<std::endl;
+//    std::cout<<"ntokens_ "<<ntokens_<<std::endl;
+//    std::cout<<"pruneidx_size_ "<<pruneidx_size_<<std::endl;
+    for (int32_t i = 0; i < pruneidx_size_; i++) {
+        int32_t first;
+        int32_t second;
+        in.read((char*) &first, sizeof(int32_t));
+        in.read((char*) &second, sizeof(int32_t));
+        pruneidx_[first] = second;
+    }
+
+    initTableDiscard();
+    initNgrams();
+    int32_t word2intsize = std::ceil(size_ / 0.7);
+    word2int_.assign(word2intsize, -1);
+    for (int32_t i = 0; i < size_; i++) {
+        word2int_[find(words_[i].word)] = i;
+    }
 }
 
 void Dictionary::init() {
@@ -503,47 +543,49 @@ void Dictionary::dump(std::ostream& out) const {
 }
 
 void Dictionary::addDict(Dictionary dict, bool reset) {
-  for (auto i = 0; i < dict.nwords(); ++i) {
-    entry e = dict.words_[i];
-    int32_t h = find(e.word);
-
-    ntokens_++;
-    if (word2int_[h] == -1) {
-      words_.push_back(e);
-      word2int_[h] = size_++;
-      nwords_++;
-    } else {
-      words_[word2int_[h]].count += e.count;
+    for (auto i = 0; i < dict.nwords(); ++i) {
+//        std::cout<<"line 541 "<<i<<std::endl;
+        entry e = dict.words_[i];
+        int32_t h = find(e.word);
+//        std::cout<<"line 543 "<<i<<" "<<h<<std::endl;
+        ntokens_++;
+        if (word2int_[h] == -1) {
+            words_.push_back(e);
+            word2int_[h] = size_++;
+            nwords_++;
+        } else {
+//            std::cout<<"line 550 "<<i<<std::endl;
+            words_[word2int_[h]].count += e.count;
+        }
     }
-  }
+//    std::cout<<"line 554 "<<std::endl;
+    for (auto i = 0; i < dict.nlabels(); ++i) {
+        entry e = dict.words_[dict.nwords() + i];
+        int32_t h = find(e.word);
 
-  for (auto i = 0; i < dict.nlabels(); ++i) {
-    entry e = dict.words_[dict.nwords() + i];
-    int32_t h = find(e.word);
-
-    ntokens_++;
-    if (word2int_[h] == -1) {
-      words_.push_back(e);
-      word2int_[h] = size_++;
-      nlabels_++;
-    } else {
-      words_[word2int_[h]].count += e.count;
+        ntokens_++;
+        if (word2int_[h] == -1) {
+            words_.push_back(e);
+            word2int_[h] = size_++;
+        nlabels_++;
+        } else {
+            words_[word2int_[h]].count += e.count;
+        }
     }
-  }
 
-  if (reset) {
-    threshold(args_->minCount, args_->minCountLabel);
-    initTableDiscard();
-    initNgrams();
-  }
+    if (reset) {
+        threshold(args_->minCount, args_->minCountLabel);
+        initTableDiscard();
+        initNgrams();
+    }
 
-  if (args_->verbose > 0) {
-    std::cerr << "Read " << dict.ntokens() / 1000000 << "M words" << std::endl;
-    std::cerr << "Number of words:  " << nwords_ << std::endl;
-    std::cerr << "Number of labels: " << nlabels_ << std::endl;
-  }
-  if (size_ == 0) {
-    throw std::invalid_argument("Empty vocabulary. Try a smaller -minCount value.");
-  }
+    if (args_->verbose > 0) {
+        std::cerr << "Read " << dict.ntokens() / 1000000 << "M words" << std::endl;
+        std::cerr << "Number of words:  " << nwords_ << std::endl;
+        std::cerr << "Number of labels: " << nlabels_ << std::endl;
+    }
+    if (size_ == 0) {
+        throw std::invalid_argument("Empty vocabulary. Try a smaller -minCount value.");
+    }
 }
 }
